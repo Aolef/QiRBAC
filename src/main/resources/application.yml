@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: QiRBAC
+  datasource:
+    url: jdbc:mysql://localhost:3306/qqdb?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: totoro
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 3000ms
+
+jwt:
+  secret: qirbac-dev-secret-key-must-be-at-least-32-bytes
+  issuer: QiRBAC
+  # JWT 自身有效期：7 天。它是安全兜底，真正的登录状态主要由 Redis 控制。
+  expiration: 604800000
+
+# Redis 中存储的短 token 配置。
+login:
+  token:
+    prefix: "login:token:"
+    # Redis 登录态有效期：2 小时。
+    expiration: 7200000
+    # Redis 剩余有效期小于等于 30 分钟时，才刷新回完整有效期。
+    refresh-threshold: 1800000
+
+# 接口鉴权配置。
+security:
+  # 白名单接口不需要登录就可以访问。
+  whitelist:
+    - /auth/login
+    - /auth/logout
+    - /error
+    - /favicon.ico
