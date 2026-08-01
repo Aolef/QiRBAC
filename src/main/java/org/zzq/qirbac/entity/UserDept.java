@@ -7,25 +7,27 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+/**
+ * 用户部门关系实体。
+ *
+ * 一条记录表示：某个用户属于某个部门。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Table("sys_user")
-public class User extends BaseEntity {
+@Table("sys_user_dept")
+public class UserDept extends BaseEntity {
 
-    @Column("username")
-    private String username;
+    /**
+     * 用户 ID。
+     */
+    @Column("user_id")
+    private Long userId;
 
-    @Column("password")
-    private String password;
-
-    @Column("enabled")
-    private Boolean enabled;
-
-    @Column("deleted")
-    private Boolean deleted;
-
-    @Column("super_admin")
-    private Boolean superAdmin;
+    /**
+     * 部门 ID。
+     */
+    @Column("dept_id")
+    private Long deptId;
 }

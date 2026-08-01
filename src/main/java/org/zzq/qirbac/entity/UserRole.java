@@ -7,25 +7,27 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+/**
+ * 用户角色关系实体。
+ *
+ * 一条记录表示：某个用户拥有某个角色。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Table("sys_user")
-public class User extends BaseEntity {
+@Table("sys_user_role")
+public class UserRole extends BaseEntity {
 
-    @Column("username")
-    private String username;
+    /**
+     * 用户 ID。
+     */
+    @Column("user_id")
+    private Long userId;
 
-    @Column("password")
-    private String password;
-
-    @Column("enabled")
-    private Boolean enabled;
-
-    @Column("deleted")
-    private Boolean deleted;
-
-    @Column("super_admin")
-    private Boolean superAdmin;
+    /**
+     * 角色 ID。
+     */
+    @Column("role_id")
+    private Long roleId;
 }

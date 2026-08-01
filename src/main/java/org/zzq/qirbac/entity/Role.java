@@ -7,25 +7,21 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+/**
+ * 角色实体。
+ *
+ * 角色用于给用户分组授权，例如管理员、普通用户、审核员。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@Table("sys_user")
-public class User extends BaseEntity {
+@Table("sys_role")
+public class Role extends BaseEntity {
 
-    @Column("username")
-    private String username;
-
-    @Column("password")
-    private String password;
-
-    @Column("enabled")
-    private Boolean enabled;
-
-    @Column("deleted")
-    private Boolean deleted;
-
-    @Column("super_admin")
-    private Boolean superAdmin;
+    /**
+     * 角色名称。
+     */
+    @Column("role_name")
+    private String roleName;
 }
