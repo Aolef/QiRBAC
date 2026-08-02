@@ -20,6 +20,7 @@
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <springdoc.version>3.1.0</springdoc.version>
     </properties>
 
     <modules>
@@ -32,4 +33,14 @@
         <module>qirbac-auth</module>
         <module>qirbac-app</module>
     </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.swagger.core.v3</groupId>
+                <artifactId>swagger-annotations</artifactId>
+                <version>2.2.15</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 </project>

@@ -36,3 +36,17 @@ security:
     - /auth/logout
     - /error
     - /favicon.ico
+    # swagger / OpenAPI 文档
+    - /v3/api-docs/**
+    - /swagger-ui/**
+    - /swagger-ui.html
+
+# springdoc-openapi 配置（Swagger UI）。
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  packages-to-scan: org.zzq.qirbac

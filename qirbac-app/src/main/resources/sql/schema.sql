@@ -11,6 +11,15 @@ CREATE TABLE IF NOT EXISTS sys_user (
     INDEX idx_user_username (username)
 ) COMMENT='用户表';
 
+INSERT INTO sys_user (username, password, enabled, deleted, super_admin)
+VALUES (
+           'admin',
+           '123456',
+           1,
+           0,
+           1
+       );
+
 -- 角色表。
 CREATE TABLE IF NOT EXISTS sys_role (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '角色ID',
