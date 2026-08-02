@@ -11,23 +11,13 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>qirbac-user</artifactId>
-    <name>QiRBAC User</name>
+    <artifactId>qirbac-role</artifactId>
+    <name>QiRBAC Role</name>
 
     <dependencies>
         <dependency>
             <groupId>org.zzq</groupId>
             <artifactId>qirbac-common</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.zzq</groupId>
-            <artifactId>qirbac-security</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.zzq</groupId>
-            <artifactId>qirbac-role</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

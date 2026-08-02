@@ -25,7 +25,11 @@ public enum ResultCode {
     ROLE_NOT_FOUND(2003, "角色不存在"),
     DEPT_NOT_FOUND(2004, "部门不存在"),
     INVALID_USER_IDS(2005, "用户 ID 列表不能为空"),
-    CANNOT_DELETE_SELF(2006, "不能删除当前登录用户");
+    CANNOT_DELETE_SELF(2006, "不能删除当前登录用户"),
+
+    ROLE_NAME_ALREADY_EXISTS(3001, "角色名称已存在"),
+    INVALID_ROLE_IDS(3002, "角色 ID 列表不能为空"),
+    INVALID_ROLE_NAME(3003, "角色名称不能为空且长度不能超过 50 个字符");
 
     private final Integer code;
     private final String message;

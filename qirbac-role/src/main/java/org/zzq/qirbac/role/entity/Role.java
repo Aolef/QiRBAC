@@ -1,4 +1,4 @@
-package org.zzq.qirbac.user.entity;
+package org.zzq.qirbac.role.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

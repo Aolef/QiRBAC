@@ -5,6 +5,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.zzq.qirbac.common.BusinessException;
 import org.zzq.qirbac.common.ResultCode;
+import org.zzq.qirbac.role.dto.RoleSummary;
+import org.zzq.qirbac.role.service.RoleQueryService;
 import org.zzq.qirbac.security.context.LoginUser;
 import org.zzq.qirbac.security.context.LoginUserContext;
 import org.zzq.qirbac.security.token.LoginTokenService;
@@ -16,10 +18,8 @@ import org.zzq.qirbac.user.dto.UserDetailResponse;
 import org.zzq.qirbac.user.dto.UserResponse;
 import org.zzq.qirbac.user.dto.UserUpdateRequest;
 import org.zzq.qirbac.user.entity.Dept;
-import org.zzq.qirbac.user.entity.Role;
 import org.zzq.qirbac.user.entity.User;
 import org.zzq.qirbac.user.repository.DeptRepository;
-import org.zzq.qirbac.user.repository.RoleRepository;
 import org.zzq.qirbac.user.repository.UserRelationRepository;
 import org.zzq.qirbac.user.repository.UserRepository;
 
@@ -38,20 +38,20 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
+    private final RoleQueryService roleQueryService;
     private final DeptRepository deptRepository;
     private final UserRelationRepository userRelationRepository;
     private final LoginTokenService loginTokenService;
 
     public UserService(
             UserRepository userRepository,
-            RoleRepository roleRepository,
+            RoleQueryService roleQueryService,
             DeptRepository deptRepository,
             UserRelationRepository userRelationRepository,
             LoginTokenService loginTokenService
     ) {
         this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
+        this.roleQueryService = roleQueryService;
         this.deptRepository = deptRepository;
         this.userRelationRepository = userRelationRepository;
         this.loginTokenService = loginTokenService;
@@ -187,7 +187,7 @@ public class UserService {
 
         Set<Long> roleIds = flattenIds(roleIdsByUser);
         Set<Long> deptIds = flattenIds(deptIdsByUser);
-        Map<Long, Role> rolesById = toEntityMap(roleRepository.findAllById(roleIds), Role::getId);
+        Map<Long, RoleSummary> rolesById = roleQueryService.findRoleSummaries(roleIds);
         Map<Long, Dept> deptsById = toEntityMap(deptRepository.findAllById(deptIds), Dept::getId);
 
         return users.stream()
@@ -256,9 +256,7 @@ public class UserService {
     }
 
     private void validateRoleIds(List<Long> roleIds) {
-        if (count(roleRepository.findAllById(roleIds)) != roleIds.size()) {
-            throw new BusinessException(ResultCode.ROLE_NOT_FOUND);
-        }
+        roleQueryService.validateRoleIds(roleIds);
     }
 
     private void validateDeptIds(List<Long> deptIds) {
@@ -298,11 +296,11 @@ public class UserService {
         return result;
     }
 
-    private List<RoleResponse> toRoleResponses(List<Long> roleIds, Map<Long, Role> rolesById) {
+    private List<RoleResponse> toRoleResponses(List<Long> roleIds, Map<Long, RoleSummary> rolesById) {
         return roleIds.stream()
                 .map(rolesById::get)
                 .filter(java.util.Objects::nonNull)
-                .map(role -> new RoleResponse(role.getId(), role.getRoleName()))
+                .map(role -> new RoleResponse(role.id(), role.roleName()))
                 .toList();
     }
 

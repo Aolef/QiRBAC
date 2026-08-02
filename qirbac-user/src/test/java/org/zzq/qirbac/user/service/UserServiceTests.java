@@ -9,6 +9,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.zzq.qirbac.common.BusinessException;
 import org.zzq.qirbac.common.ResultCode;
+import org.zzq.qirbac.role.dto.RoleSummary;
+import org.zzq.qirbac.role.service.RoleQueryService;
 import org.zzq.qirbac.security.context.LoginUser;
 import org.zzq.qirbac.security.context.LoginUserContext;
 import org.zzq.qirbac.security.token.LoginTokenService;
@@ -17,10 +19,8 @@ import org.zzq.qirbac.user.dto.UserCreateRequest;
 import org.zzq.qirbac.user.dto.UserResponse;
 import org.zzq.qirbac.user.dto.UserUpdateRequest;
 import org.zzq.qirbac.user.entity.Dept;
-import org.zzq.qirbac.user.entity.Role;
 import org.zzq.qirbac.user.entity.User;
 import org.zzq.qirbac.user.repository.DeptRepository;
-import org.zzq.qirbac.user.repository.RoleRepository;
 import org.zzq.qirbac.user.repository.UserRelationRepository;
 import org.zzq.qirbac.user.repository.UserRepository;
 
@@ -43,7 +43,7 @@ class UserServiceTests {
     private UserRepository userRepository;
 
     @Mock
-    private RoleRepository roleRepository;
+    private RoleQueryService roleQueryService;
 
     @Mock
     private DeptRepository deptRepository;
@@ -71,7 +71,6 @@ class UserServiceTests {
         request.setDeptIds(List.of(10L));
 
         when(userRepository.findAvailableByUsername("zhangsan")).thenReturn(Optional.empty());
-        when(roleRepository.findAllById(List.of(1L))).thenReturn(List.of(role(1L, "管理员")));
         when(deptRepository.findAllById(List.of(10L))).thenReturn(List.of(dept(10L, "技术部", 0L)));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -88,6 +87,7 @@ class UserServiceTests {
         assertEquals(100L, response.getId());
         verify(userRelationRepository).replaceRoles(100L, List.of(1L));
         verify(userRelationRepository).replaceDepts(100L, List.of(10L));
+        verify(roleQueryService).validateRoleIds(List.of(1L));
     }
 
     @Test
@@ -103,7 +103,6 @@ class UserServiceTests {
         when(userRepository.findAvailableById(2L)).thenReturn(Optional.of(existingUser));
         when(userRepository.findAvailableByUsernameExcludingId("new-name", 2L))
                 .thenReturn(Optional.empty());
-        when(roleRepository.findAllById(List.of())).thenReturn(List.of());
         when(deptRepository.findAllById(List.of())).thenReturn(List.of());
         when(userRepository.save(existingUser)).thenReturn(existingUser);
 
@@ -144,7 +143,8 @@ class UserServiceTests {
                 .thenReturn(Map.of(1L, List.of(3L)));
         when(userRelationRepository.findDeptIdsByUserIds(List.of(1L)))
                 .thenReturn(Map.of(1L, List.of(4L)));
-        when(roleRepository.findAllById(any())).thenReturn(List.of(role(3L, "审核员")));
+        when(roleQueryService.findRoleSummaries(any()))
+                .thenReturn(Map.of(3L, new RoleSummary(3L, "审核员")));
         when(deptRepository.findAllById(any())).thenReturn(List.of(dept(4L, "运营部", 0L)));
 
         List<OnlineUserResponse> responses = userService.getOnlineUsers();
@@ -160,12 +160,6 @@ class UserServiceTests {
         User user = new User(username, password, enabled, deleted, false);
         user.setId(id);
         return user;
-    }
-
-    private Role role(Long id, String name) {
-        Role role = new Role(name);
-        role.setId(id);
-        return role;
     }
 
     private Dept dept(Long id, String name, Long parentId) {
