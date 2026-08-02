@@ -16,7 +16,7 @@ import org.zzq.qirbac.role.service.RoleQueryService;
 import org.zzq.qirbac.security.context.LoginUser;
 import org.zzq.qirbac.security.context.LoginUserContext;
 import org.zzq.qirbac.security.token.LoginTokenService;
-import org.zzq.qirbac.user.dto.OnlineUserResponse;
+import org.zzq.qirbac.user.dto.CurrentUserResponse;
 import org.zzq.qirbac.user.dto.UserCreateRequest;
 import org.zzq.qirbac.user.dto.UserResponse;
 import org.zzq.qirbac.user.dto.UserUpdateRequest;
@@ -127,30 +127,20 @@ class UserServiceTests {
     }
 
     @Test
-    void onlineUsersAreDeduplicatedAndIncludeRoleAndDeptObjects() {
-        User onlineUser = user(1L, "zhangsan", "password", true, false);
-        User disabledUser = user(2L, "lisi", "password", false, false);
+    void getCurrentUserReturnsInfoAndRoleAndDeptObjects() {
+        LoginUserContext.set(new LoginUser(1L, "zhangsan", false));
+        User currentUser = user(1L, "zhangsan", "password", true, false);
 
-        when(loginTokenService.findOnlineLoginUsers()).thenReturn(List.of(
-                new LoginUser(1L, "old-name", false),
-                new LoginUser(1L, "old-name", false),
-                new LoginUser(2L, "lisi", false)
-        ));
-        when(userRepository.findAllById(any()))
-                .thenReturn(List.of(onlineUser, disabledUser));
-        when(userRelationRepository.findRoleIdsByUserIds(List.of(1L)))
-                .thenReturn(Map.of(1L, List.of(3L)));
-        when(userRelationRepository.findDeptIdsByUserIds(List.of(1L)))
-                .thenReturn(Map.of(1L, List.of(4L)));
+        when(userRepository.findAvailableById(1L)).thenReturn(Optional.of(currentUser));
+        when(userRelationRepository.findRoleIdsByUserId(1L)).thenReturn(List.of(3L));
+        when(userRelationRepository.findDeptIdsByUserId(1L)).thenReturn(List.of(4L));
         when(roleQueryService.findRoleSummaries(any()))
                 .thenReturn(Map.of(3L, new RoleSummary(3L, "审核员")));
         when(deptQueryService.findDeptSummaries(any()))
                 .thenReturn(Map.of(4L, new DeptSummary(4L, "运营部", 0L)));
 
-        List<OnlineUserResponse> responses = userService.getOnlineUsers();
+        CurrentUserResponse response = userService.getCurrentUser();
 
-        assertEquals(1, responses.size());
-        OnlineUserResponse response = responses.get(0);
         assertEquals("zhangsan", response.getUsername());
         assertEquals("审核员", response.getRoles().get(0).getRoleName());
         assertEquals("运营部", response.getDepts().get(0).getDeptName());

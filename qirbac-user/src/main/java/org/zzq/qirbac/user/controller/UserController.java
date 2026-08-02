@@ -9,15 +9,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.zzq.qirbac.common.Result;
-import org.zzq.qirbac.user.dto.OnlineUserResponse;
+import org.zzq.qirbac.user.dto.CurrentUserResponse;
 import org.zzq.qirbac.user.dto.UserBatchDeleteRequest;
 import org.zzq.qirbac.user.dto.UserCreateRequest;
 import org.zzq.qirbac.user.dto.UserDetailResponse;
 import org.zzq.qirbac.user.dto.UserResponse;
 import org.zzq.qirbac.user.dto.UserUpdateRequest;
 import org.zzq.qirbac.user.service.UserService;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/users")
@@ -59,8 +57,11 @@ public class UserController {
         return Result.success(userService.getUserDetail(id));
     }
 
-    @GetMapping("/online")
-    public Result<List<OnlineUserResponse>> getOnlineUsers() {
-        return Result.success(userService.getOnlineUsers());
+    /**
+     * 当前登录用户信息：根据当前 token 返回当前用户的基础信息 + 角色 + 部门。
+     */
+    @GetMapping("/me")
+    public Result<CurrentUserResponse> getCurrentUser() {
+        return Result.success(userService.getCurrentUser());
     }
 }

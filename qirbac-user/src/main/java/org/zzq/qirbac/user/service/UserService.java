@@ -7,13 +7,12 @@ import org.zzq.qirbac.common.BusinessException;
 import org.zzq.qirbac.common.ResultCode;
 import org.zzq.qirbac.role.dto.RoleSummary;
 import org.zzq.qirbac.role.service.RoleQueryService;
-import org.zzq.qirbac.security.context.LoginUser;
 import org.zzq.qirbac.security.context.LoginUserContext;
 import org.zzq.qirbac.security.token.LoginTokenService;
 import org.zzq.qirbac.dept.dto.DeptSummary;
 import org.zzq.qirbac.dept.service.DeptQueryService;
+import org.zzq.qirbac.user.dto.CurrentUserResponse;
 import org.zzq.qirbac.user.dto.DeptResponse;
-import org.zzq.qirbac.user.dto.OnlineUserResponse;
 import org.zzq.qirbac.user.dto.RoleResponse;
 import org.zzq.qirbac.user.dto.UserCreateRequest;
 import org.zzq.qirbac.user.dto.UserDetailResponse;
@@ -25,12 +24,10 @@ import org.zzq.qirbac.user.repository.UserRepository;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -161,42 +158,33 @@ public class UserService {
         );
     }
 
+    /**
+     * 获取当前登录用户信息。
+     *
+     * 根据当前 token 解析出的 userId 查询用户基础信息、角色、部门。
+     * 未登录时抛 UNAUTHORIZED。
+     */
     @Transactional(readOnly = true)
-    public List<OnlineUserResponse> getOnlineUsers() {
-        Set<Long> onlineUserIds = loginTokenService.findOnlineLoginUsers().stream()
-                .map(LoginUser::getUserId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        if (onlineUserIds.isEmpty()) {
-            return List.of();
+    public CurrentUserResponse getCurrentUser() {
+        Long userId = LoginUserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
         }
+        User user = userRepository.findAvailableById(userId)
+                .orElseThrow(() -> new BusinessException(ResultCode.USER_NOT_FOUND));
 
-        List<User> users = new ArrayList<>();
-        userRepository.findAllById(onlineUserIds).forEach(user -> {
-            if (!Boolean.TRUE.equals(user.getDeleted()) && Boolean.TRUE.equals(user.getEnabled())) {
-                users.add(user);
-            }
-        });
-        users.sort(Comparator.comparing(User::getId));
-
-        List<Long> userIds = users.stream().map(User::getId).toList();
-        Map<Long, List<Long>> roleIdsByUser = userRelationRepository.findRoleIdsByUserIds(userIds);
-        Map<Long, List<Long>> deptIdsByUser = userRelationRepository.findDeptIdsByUserIds(userIds);
-
-        Set<Long> roleIds = flattenIds(roleIdsByUser);
-        Set<Long> deptIds = flattenIds(deptIdsByUser);
+        List<Long> roleIds = userRelationRepository.findRoleIdsByUserId(userId);
+        List<Long> deptIds = userRelationRepository.findDeptIdsByUserId(userId);
         Map<Long, RoleSummary> rolesById = roleQueryService.findRoleSummaries(roleIds);
         Map<Long, DeptSummary> deptsById = deptQueryService.findDeptSummaries(deptIds);
 
-        return users.stream()
-                .map(user -> new OnlineUserResponse(
-                        user.getId(),
-                        user.getUsername(),
-                        user.getEnabled(),
-                        toRoleResponses(roleIdsByUser.getOrDefault(user.getId(), List.of()), rolesById),
-                        toDeptResponses(deptIdsByUser.getOrDefault(user.getId(), List.of()), deptsById)
-                ))
-                .toList();
+        return new CurrentUserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEnabled(),
+                toRoleResponses(roleIds, rolesById),
+                toDeptResponses(deptIds, deptsById)
+        );
     }
 
     private void checkCreateRequest(UserCreateRequest request) {
@@ -270,12 +258,6 @@ public class UserService {
 
     private UserResponse toUserResponse(User user) {
         return new UserResponse(user.getId(), user.getUsername(), user.getEnabled());
-    }
-
-    private Set<Long> flattenIds(Map<Long, List<Long>> idsByUser) {
-        return idsByUser.values().stream()
-                .flatMap(Collection::stream)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private List<RoleResponse> toRoleResponses(List<Long> roleIds, Map<Long, RoleSummary> rolesById) {
