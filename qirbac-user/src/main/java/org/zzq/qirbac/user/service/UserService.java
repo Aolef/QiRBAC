@@ -1,0 +1,316 @@
+package org.zzq.qirbac.user.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.zzq.qirbac.common.BusinessException;
+import org.zzq.qirbac.common.ResultCode;
+import org.zzq.qirbac.security.context.LoginUser;
+import org.zzq.qirbac.security.context.LoginUserContext;
+import org.zzq.qirbac.security.token.LoginTokenService;
+import org.zzq.qirbac.user.dto.DeptResponse;
+import org.zzq.qirbac.user.dto.OnlineUserResponse;
+import org.zzq.qirbac.user.dto.RoleResponse;
+import org.zzq.qirbac.user.dto.UserCreateRequest;
+import org.zzq.qirbac.user.dto.UserDetailResponse;
+import org.zzq.qirbac.user.dto.UserResponse;
+import org.zzq.qirbac.user.dto.UserUpdateRequest;
+import org.zzq.qirbac.user.entity.Dept;
+import org.zzq.qirbac.user.entity.Role;
+import org.zzq.qirbac.user.entity.User;
+import org.zzq.qirbac.user.repository.DeptRepository;
+import org.zzq.qirbac.user.repository.RoleRepository;
+import org.zzq.qirbac.user.repository.UserRelationRepository;
+import org.zzq.qirbac.user.repository.UserRepository;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Service
+public class UserService {
+
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final DeptRepository deptRepository;
+    private final UserRelationRepository userRelationRepository;
+    private final LoginTokenService loginTokenService;
+
+    public UserService(
+            UserRepository userRepository,
+            RoleRepository roleRepository,
+            DeptRepository deptRepository,
+            UserRelationRepository userRelationRepository,
+            LoginTokenService loginTokenService
+    ) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.deptRepository = deptRepository;
+        this.userRelationRepository = userRelationRepository;
+        this.loginTokenService = loginTokenService;
+    }
+
+    @Transactional
+    public UserResponse createUser(UserCreateRequest request) {
+        checkCreateRequest(request);
+        String username = request.getUsername().trim();
+        ensureUsernameAvailable(username, null);
+
+        List<Long> roleIds = normalizeRelationIds(request.getRoleIds());
+        List<Long> deptIds = normalizeRelationIds(request.getDeptIds());
+        validateRoleIds(roleIds);
+        validateDeptIds(deptIds);
+
+        User user = new User(
+                username,
+                request.getPassword(),
+                request.getEnabled() == null ? true : request.getEnabled(),
+                false,
+                false
+        );
+        User savedUser = userRepository.save(user);
+        userRelationRepository.replaceRoles(savedUser.getId(), roleIds);
+        userRelationRepository.replaceDepts(savedUser.getId(), deptIds);
+
+        return toUserResponse(savedUser);
+    }
+
+    @Transactional
+    public UserResponse updateUser(Long id, UserUpdateRequest request) {
+        checkUserId(id);
+        checkUpdateRequest(request);
+
+        User user = getAvailableUser(id);
+        String username = request.getUsername().trim();
+        ensureUsernameAvailable(username, id);
+
+        List<Long> roleIds = normalizeRelationIds(request.getRoleIds());
+        List<Long> deptIds = normalizeRelationIds(request.getDeptIds());
+        validateRoleIds(roleIds);
+        validateDeptIds(deptIds);
+
+        user.setUsername(username);
+        if (StringUtils.hasText(request.getPassword())) {
+            user.setPassword(request.getPassword());
+        }
+        if (request.getEnabled() != null) {
+            user.setEnabled(request.getEnabled());
+        }
+
+        User savedUser = userRepository.save(user);
+        userRelationRepository.replaceRoles(id, roleIds);
+        userRelationRepository.replaceDepts(id, deptIds);
+
+        if (Boolean.FALSE.equals(savedUser.getEnabled())) {
+            loginTokenService.removeLoginTokensByUserId(id);
+        }
+
+        return toUserResponse(savedUser);
+    }
+
+    @Transactional
+    public void deleteUser(Long id) {
+        checkUserId(id);
+        rejectCurrentUser(List.of(id));
+
+        User user = getAvailableUser(id);
+        user.setDeleted(true);
+        userRepository.save(user);
+        userRelationRepository.deleteRolesByUserId(id);
+        userRelationRepository.deleteDeptsByUserId(id);
+        loginTokenService.removeLoginTokensByUserId(id);
+    }
+
+    @Transactional
+    public void batchDeleteUsers(Collection<Long> ids) {
+        List<Long> userIds = normalizeUserIds(ids);
+        rejectCurrentUser(userIds);
+
+        List<User> users = new ArrayList<>();
+        userRepository.findAllById(userIds).forEach(user -> {
+            if (!Boolean.TRUE.equals(user.getDeleted())) {
+                users.add(user);
+            }
+        });
+        if (users.size() != userIds.size()) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
+        users.forEach(user -> user.setDeleted(true));
+        userRepository.saveAll(users);
+        userRelationRepository.deleteRolesByUserIds(userIds);
+        userRelationRepository.deleteDeptsByUserIds(userIds);
+        userIds.forEach(loginTokenService::removeLoginTokensByUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public UserDetailResponse getUserDetail(Long id) {
+        checkUserId(id);
+        User user = getAvailableUser(id);
+        return new UserDetailResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEnabled(),
+                userRelationRepository.findRoleIdsByUserId(id),
+                userRelationRepository.findDeptIdsByUserId(id)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<OnlineUserResponse> getOnlineUsers() {
+        Set<Long> onlineUserIds = loginTokenService.findOnlineLoginUsers().stream()
+                .map(LoginUser::getUserId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (onlineUserIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<User> users = new ArrayList<>();
+        userRepository.findAllById(onlineUserIds).forEach(user -> {
+            if (!Boolean.TRUE.equals(user.getDeleted()) && Boolean.TRUE.equals(user.getEnabled())) {
+                users.add(user);
+            }
+        });
+        users.sort(Comparator.comparing(User::getId));
+
+        List<Long> userIds = users.stream().map(User::getId).toList();
+        Map<Long, List<Long>> roleIdsByUser = userRelationRepository.findRoleIdsByUserIds(userIds);
+        Map<Long, List<Long>> deptIdsByUser = userRelationRepository.findDeptIdsByUserIds(userIds);
+
+        Set<Long> roleIds = flattenIds(roleIdsByUser);
+        Set<Long> deptIds = flattenIds(deptIdsByUser);
+        Map<Long, Role> rolesById = toEntityMap(roleRepository.findAllById(roleIds), Role::getId);
+        Map<Long, Dept> deptsById = toEntityMap(deptRepository.findAllById(deptIds), Dept::getId);
+
+        return users.stream()
+                .map(user -> new OnlineUserResponse(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEnabled(),
+                        toRoleResponses(roleIdsByUser.getOrDefault(user.getId(), List.of()), rolesById),
+                        toDeptResponses(deptIdsByUser.getOrDefault(user.getId(), List.of()), deptsById)
+                ))
+                .toList();
+    }
+
+    private void checkCreateRequest(UserCreateRequest request) {
+        if (request == null
+                || !StringUtils.hasText(request.getUsername())
+                || !StringUtils.hasText(request.getPassword())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+    }
+
+    private void checkUpdateRequest(UserUpdateRequest request) {
+        if (request == null || !StringUtils.hasText(request.getUsername())) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+    }
+
+    private void checkUserId(Long id) {
+        if (id == null || id <= 0) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+    }
+
+    private User getAvailableUser(Long id) {
+        return userRepository.findAvailableById(id)
+                .orElseThrow(() -> new BusinessException(ResultCode.USER_NOT_FOUND));
+    }
+
+    private void ensureUsernameAvailable(String username, Long excludedId) {
+        boolean exists = excludedId == null
+                ? userRepository.findAvailableByUsername(username).isPresent()
+                : userRepository.findAvailableByUsernameExcludingId(username, excludedId).isPresent();
+        if (exists) {
+            throw new BusinessException(ResultCode.USERNAME_ALREADY_EXISTS);
+        }
+    }
+
+    private List<Long> normalizeRelationIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        if (ids.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+        return new ArrayList<>(new LinkedHashSet<>(ids));
+    }
+
+    private List<Long> normalizeUserIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BusinessException(ResultCode.INVALID_USER_IDS);
+        }
+        if (ids.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+        return new ArrayList<>(new LinkedHashSet<>(ids));
+    }
+
+    private void validateRoleIds(List<Long> roleIds) {
+        if (count(roleRepository.findAllById(roleIds)) != roleIds.size()) {
+            throw new BusinessException(ResultCode.ROLE_NOT_FOUND);
+        }
+    }
+
+    private void validateDeptIds(List<Long> deptIds) {
+        if (count(deptRepository.findAllById(deptIds)) != deptIds.size()) {
+            throw new BusinessException(ResultCode.DEPT_NOT_FOUND);
+        }
+    }
+
+    private long count(Iterable<?> values) {
+        long count = 0;
+        for (Object ignored : values) {
+            count++;
+        }
+        return count;
+    }
+
+    private void rejectCurrentUser(Collection<Long> ids) {
+        Long currentUserId = LoginUserContext.getUserId();
+        if (currentUserId != null && ids.contains(currentUserId)) {
+            throw new BusinessException(ResultCode.CANNOT_DELETE_SELF);
+        }
+    }
+
+    private UserResponse toUserResponse(User user) {
+        return new UserResponse(user.getId(), user.getUsername(), user.getEnabled());
+    }
+
+    private Set<Long> flattenIds(Map<Long, List<Long>> idsByUser) {
+        return idsByUser.values().stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private <T> Map<Long, T> toEntityMap(Iterable<T> entities, Function<T, Long> idGetter) {
+        Map<Long, T> result = new LinkedHashMap<>();
+        entities.forEach(entity -> result.put(idGetter.apply(entity), entity));
+        return result;
+    }
+
+    private List<RoleResponse> toRoleResponses(List<Long> roleIds, Map<Long, Role> rolesById) {
+        return roleIds.stream()
+                .map(rolesById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(role -> new RoleResponse(role.getId(), role.getRoleName()))
+                .toList();
+    }
+
+    private List<DeptResponse> toDeptResponses(List<Long> deptIds, Map<Long, Dept> deptsById) {
+        return deptIds.stream()
+                .map(deptsById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(dept -> new DeptResponse(dept.getId(), dept.getDeptName(), dept.getParentId()))
+                .toList();
+    }
+}
