@@ -26,6 +26,7 @@
         <module>qirbac-common</module>
         <module>qirbac-security</module>
         <module>qirbac-role</module>
+        <module>qirbac-dept</module>
         <module>qirbac-user</module>
         <module>qirbac-auth</module>
         <module>qirbac-app</module>

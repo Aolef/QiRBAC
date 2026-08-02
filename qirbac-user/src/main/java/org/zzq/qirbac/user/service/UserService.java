@@ -10,6 +10,8 @@ import org.zzq.qirbac.role.service.RoleQueryService;
 import org.zzq.qirbac.security.context.LoginUser;
 import org.zzq.qirbac.security.context.LoginUserContext;
 import org.zzq.qirbac.security.token.LoginTokenService;
+import org.zzq.qirbac.dept.dto.DeptSummary;
+import org.zzq.qirbac.dept.service.DeptQueryService;
 import org.zzq.qirbac.user.dto.DeptResponse;
 import org.zzq.qirbac.user.dto.OnlineUserResponse;
 import org.zzq.qirbac.user.dto.RoleResponse;
@@ -17,21 +19,17 @@ import org.zzq.qirbac.user.dto.UserCreateRequest;
 import org.zzq.qirbac.user.dto.UserDetailResponse;
 import org.zzq.qirbac.user.dto.UserResponse;
 import org.zzq.qirbac.user.dto.UserUpdateRequest;
-import org.zzq.qirbac.user.entity.Dept;
 import org.zzq.qirbac.user.entity.User;
-import org.zzq.qirbac.user.repository.DeptRepository;
 import org.zzq.qirbac.user.repository.UserRelationRepository;
 import org.zzq.qirbac.user.repository.UserRepository;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,20 +37,20 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final RoleQueryService roleQueryService;
-    private final DeptRepository deptRepository;
+    private final DeptQueryService deptQueryService;
     private final UserRelationRepository userRelationRepository;
     private final LoginTokenService loginTokenService;
 
     public UserService(
             UserRepository userRepository,
             RoleQueryService roleQueryService,
-            DeptRepository deptRepository,
+            DeptQueryService deptQueryService,
             UserRelationRepository userRelationRepository,
             LoginTokenService loginTokenService
     ) {
         this.userRepository = userRepository;
         this.roleQueryService = roleQueryService;
-        this.deptRepository = deptRepository;
+        this.deptQueryService = deptQueryService;
         this.userRelationRepository = userRelationRepository;
         this.loginTokenService = loginTokenService;
     }
@@ -188,7 +186,7 @@ public class UserService {
         Set<Long> roleIds = flattenIds(roleIdsByUser);
         Set<Long> deptIds = flattenIds(deptIdsByUser);
         Map<Long, RoleSummary> rolesById = roleQueryService.findRoleSummaries(roleIds);
-        Map<Long, Dept> deptsById = toEntityMap(deptRepository.findAllById(deptIds), Dept::getId);
+        Map<Long, DeptSummary> deptsById = deptQueryService.findDeptSummaries(deptIds);
 
         return users.stream()
                 .map(user -> new OnlineUserResponse(
@@ -260,17 +258,7 @@ public class UserService {
     }
 
     private void validateDeptIds(List<Long> deptIds) {
-        if (count(deptRepository.findAllById(deptIds)) != deptIds.size()) {
-            throw new BusinessException(ResultCode.DEPT_NOT_FOUND);
-        }
-    }
-
-    private long count(Iterable<?> values) {
-        long count = 0;
-        for (Object ignored : values) {
-            count++;
-        }
-        return count;
+        deptQueryService.validateDeptIds(deptIds);
     }
 
     private void rejectCurrentUser(Collection<Long> ids) {
@@ -290,12 +278,6 @@ public class UserService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private <T> Map<Long, T> toEntityMap(Iterable<T> entities, Function<T, Long> idGetter) {
-        Map<Long, T> result = new LinkedHashMap<>();
-        entities.forEach(entity -> result.put(idGetter.apply(entity), entity));
-        return result;
-    }
-
     private List<RoleResponse> toRoleResponses(List<Long> roleIds, Map<Long, RoleSummary> rolesById) {
         return roleIds.stream()
                 .map(rolesById::get)
@@ -304,11 +286,11 @@ public class UserService {
                 .toList();
     }
 
-    private List<DeptResponse> toDeptResponses(List<Long> deptIds, Map<Long, Dept> deptsById) {
+    private List<DeptResponse> toDeptResponses(List<Long> deptIds, Map<Long, DeptSummary> deptsById) {
         return deptIds.stream()
                 .map(deptsById::get)
                 .filter(java.util.Objects::nonNull)
-                .map(dept -> new DeptResponse(dept.getId(), dept.getDeptName(), dept.getParentId()))
+                .map(dept -> new DeptResponse(dept.id(), dept.deptName(), dept.parentId()))
                 .toList();
     }
 }

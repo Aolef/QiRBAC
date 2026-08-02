@@ -21,13 +21,18 @@ CREATE TABLE IF NOT EXISTS sys_role (
 ) COMMENT='角色表';
 
 -- 部门表。
+-- sort_order：同级排序，越小越靠前。
+-- deleted：逻辑删除标记，和 sys_user 保持一致，避免误删后用户关联断链。
 CREATE TABLE IF NOT EXISTS sys_dept (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '部门ID',
     dept_name VARCHAR(50) NOT NULL COMMENT '部门名称',
     parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '父级部门ID，0表示顶级部门',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '同级排序，越小越靠前',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否逻辑删除：1已删除，0未删除',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX idx_dept_parent_id (parent_id)
+    INDEX idx_dept_parent_id (parent_id),
+    INDEX idx_dept_parent_name (parent_id, dept_name)
 ) COMMENT='部门表';
 
 -- 权限表。

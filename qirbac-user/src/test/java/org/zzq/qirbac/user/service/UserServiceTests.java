@@ -9,6 +9,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.zzq.qirbac.common.BusinessException;
 import org.zzq.qirbac.common.ResultCode;
+import org.zzq.qirbac.dept.dto.DeptSummary;
+import org.zzq.qirbac.dept.service.DeptQueryService;
 import org.zzq.qirbac.role.dto.RoleSummary;
 import org.zzq.qirbac.role.service.RoleQueryService;
 import org.zzq.qirbac.security.context.LoginUser;
@@ -18,9 +20,7 @@ import org.zzq.qirbac.user.dto.OnlineUserResponse;
 import org.zzq.qirbac.user.dto.UserCreateRequest;
 import org.zzq.qirbac.user.dto.UserResponse;
 import org.zzq.qirbac.user.dto.UserUpdateRequest;
-import org.zzq.qirbac.user.entity.Dept;
 import org.zzq.qirbac.user.entity.User;
-import org.zzq.qirbac.user.repository.DeptRepository;
 import org.zzq.qirbac.user.repository.UserRelationRepository;
 import org.zzq.qirbac.user.repository.UserRepository;
 
@@ -46,7 +46,7 @@ class UserServiceTests {
     private RoleQueryService roleQueryService;
 
     @Mock
-    private DeptRepository deptRepository;
+    private DeptQueryService deptQueryService;
 
     @Mock
     private UserRelationRepository userRelationRepository;
@@ -71,7 +71,6 @@ class UserServiceTests {
         request.setDeptIds(List.of(10L));
 
         when(userRepository.findAvailableByUsername("zhangsan")).thenReturn(Optional.empty());
-        when(deptRepository.findAllById(List.of(10L))).thenReturn(List.of(dept(10L, "技术部", 0L)));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(100L);
@@ -88,6 +87,7 @@ class UserServiceTests {
         verify(userRelationRepository).replaceRoles(100L, List.of(1L));
         verify(userRelationRepository).replaceDepts(100L, List.of(10L));
         verify(roleQueryService).validateRoleIds(List.of(1L));
+        verify(deptQueryService).validateDeptIds(List.of(10L));
     }
 
     @Test
@@ -103,7 +103,6 @@ class UserServiceTests {
         when(userRepository.findAvailableById(2L)).thenReturn(Optional.of(existingUser));
         when(userRepository.findAvailableByUsernameExcludingId("new-name", 2L))
                 .thenReturn(Optional.empty());
-        when(deptRepository.findAllById(List.of())).thenReturn(List.of());
         when(userRepository.save(existingUser)).thenReturn(existingUser);
 
         userService.updateUser(2L, request);
@@ -145,7 +144,8 @@ class UserServiceTests {
                 .thenReturn(Map.of(1L, List.of(4L)));
         when(roleQueryService.findRoleSummaries(any()))
                 .thenReturn(Map.of(3L, new RoleSummary(3L, "审核员")));
-        when(deptRepository.findAllById(any())).thenReturn(List.of(dept(4L, "运营部", 0L)));
+        when(deptQueryService.findDeptSummaries(any()))
+                .thenReturn(Map.of(4L, new DeptSummary(4L, "运营部", 0L)));
 
         List<OnlineUserResponse> responses = userService.getOnlineUsers();
 
@@ -160,11 +160,5 @@ class UserServiceTests {
         User user = new User(username, password, enabled, deleted, false);
         user.setId(id);
         return user;
-    }
-
-    private Dept dept(Long id, String name, Long parentId) {
-        Dept dept = new Dept(name, parentId);
-        dept.setId(id);
-        return dept;
     }
 }

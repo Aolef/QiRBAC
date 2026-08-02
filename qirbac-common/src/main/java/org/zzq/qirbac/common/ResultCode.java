@@ -29,7 +29,12 @@ public enum ResultCode {
 
     ROLE_NAME_ALREADY_EXISTS(3001, "角色名称已存在"),
     INVALID_ROLE_IDS(3002, "角色 ID 列表不能为空"),
-    INVALID_ROLE_NAME(3003, "角色名称不能为空且长度不能超过 50 个字符");
+    INVALID_ROLE_NAME(3003, "角色名称不能为空且长度不能超过 50 个字符"),
+
+    INVALID_DEPT_NAME(4001, "部门名称不能为空且长度不能超过 50 个字符"),
+    DEPT_NAME_ALREADY_EXISTS(4002, "同级下部门名称已存在"),
+    DEPT_PARENT_INVALID(4003, "父部门不能是自己或自己的子部门"),
+    INVALID_DEPT_IDS(4004, "部门 ID 列表不能为空");
 
     private final Integer code;
     private final String message;
