@@ -36,15 +36,22 @@ CREATE TABLE IF NOT EXISTS sys_dept (
 ) COMMENT='部门表';
 
 -- 权限表。
+-- parent_id：父级权限ID，0表示顶级权限。权限按树形结构归拢分类。
+-- permission_type：FOLDER目录（纯分组，可作父，不参与鉴权）/ MENU菜单 / API接口 / BUTTON按钮（叶子，参与鉴权）。
+-- deleted：逻辑删除标记，和 sys_dept 保持一致，级联删除子孙时统一置位。
 CREATE TABLE IF NOT EXISTS sys_permission (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '权限ID',
     permission_name VARCHAR(50) NOT NULL COMMENT '权限名称',
-    route_path VARCHAR(255) COMMENT '路由地址',
-    permission_type VARCHAR(20) NOT NULL COMMENT '权限类型：MENU菜单，API接口，BUTTON按钮',
-    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+    parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '父级权限ID，0表示顶级权限',
+    route_path VARCHAR(255) COMMENT '路由地址（FOLDER类型可空）',
+    permission_type VARCHAR(20) NOT NULL COMMENT '权限类型：FOLDER目录，MENU菜单，API接口，BUTTON按钮',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '同级排序，越小越靠前',
     enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否可用：1可用，0不可用',
+    deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否逻辑删除：1已删除，0未删除',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_permission_parent_id (parent_id),
+    INDEX idx_permission_parent_name (parent_id, permission_name),
     INDEX idx_permission_type (permission_type)
 ) COMMENT='权限表';
 

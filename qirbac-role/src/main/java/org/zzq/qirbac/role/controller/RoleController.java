@@ -13,6 +13,8 @@ import org.zzq.qirbac.common.PageResult;
 import org.zzq.qirbac.common.Result;
 import org.zzq.qirbac.role.dto.RoleBatchDeleteRequest;
 import org.zzq.qirbac.role.dto.RoleCreateRequest;
+import org.zzq.qirbac.role.dto.RolePermissionAssignRequest;
+import org.zzq.qirbac.role.dto.RolePermissionTreeNode;
 import org.zzq.qirbac.role.dto.RoleResponse;
 import org.zzq.qirbac.role.dto.RoleUpdateRequest;
 import org.zzq.qirbac.role.service.RoleService;
@@ -66,5 +68,25 @@ public class RoleController {
             @RequestParam(required = false) String roleName
     ) {
         return Result.success(roleService.getRolePage(page, pageSize, roleName));
+    }
+
+    /**
+     * 给角色分配权限（替换式）。
+     */
+    @PutMapping("/{roleId}/permissions")
+    public Result<Void> assignPermissions(
+            @PathVariable Long roleId,
+            @RequestBody RolePermissionAssignRequest request
+    ) {
+        roleService.assignPermissions(roleId, request);
+        return Result.success("分配权限成功", null);
+    }
+
+    /**
+     * 回显角色已分配的权限：返回带 assigned 勾选标记的全量权限树。
+     */
+    @GetMapping("/{roleId}/permissions")
+    public Result<List<RolePermissionTreeNode>> getRolePermissionTree(@PathVariable Long roleId) {
+        return Result.success(roleService.getRolePermissionTree(roleId));
     }
 }

@@ -7,7 +7,12 @@ import org.springframework.util.StringUtils;
 import org.zzq.qirbac.common.BusinessException;
 import org.zzq.qirbac.common.PageResult;
 import org.zzq.qirbac.common.ResultCode;
+import org.zzq.qirbac.permission.dto.PermissionTreeNode;
+import org.zzq.qirbac.permission.service.PermissionQueryService;
+import org.zzq.qirbac.permission.service.PermissionService;
 import org.zzq.qirbac.role.dto.RoleCreateRequest;
+import org.zzq.qirbac.role.dto.RolePermissionAssignRequest;
+import org.zzq.qirbac.role.dto.RolePermissionTreeNode;
 import org.zzq.qirbac.role.dto.RoleResponse;
 import org.zzq.qirbac.role.dto.RoleUpdateRequest;
 import org.zzq.qirbac.role.entity.Role;
@@ -17,8 +22,10 @@ import org.zzq.qirbac.role.repository.RoleRepository;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class RoleService {
@@ -29,15 +36,21 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final RoleQueryRepository roleQueryRepository;
     private final RoleRelationRepository roleRelationRepository;
+    private final PermissionService permissionService;
+    private final PermissionQueryService permissionQueryService;
 
     public RoleService(
             RoleRepository roleRepository,
             RoleQueryRepository roleQueryRepository,
-            RoleRelationRepository roleRelationRepository
+            RoleRelationRepository roleRelationRepository,
+            PermissionService permissionService,
+            PermissionQueryService permissionQueryService
     ) {
         this.roleRepository = roleRepository;
         this.roleQueryRepository = roleQueryRepository;
         this.roleRelationRepository = roleRelationRepository;
+        this.permissionService = permissionService;
+        this.permissionQueryService = permissionQueryService;
     }
 
     @Transactional
@@ -96,6 +109,68 @@ public class RoleService {
                 .toList();
         long totalPages = total == 0 ? 0 : (total + pageSize - 1) / pageSize;
         return new PageResult<>(records, total, page, pageSize, totalPages);
+    }
+
+    // ===== 角色权限分配 =====
+
+    /**
+     * 给角色分配权限（替换式）。
+     *
+     * permissionIds 为空表示清空该角色的全部权限。
+     * 校验：角色存在 + 所有 permissionId 存在且未删除。
+     */
+    @Transactional
+    public void assignPermissions(Long roleId, RolePermissionAssignRequest request) {
+        checkRoleId(roleId);
+        getRole(roleId);  // 校验角色存在
+        List<Long> permissionIds = normalizePermissionIds(request == null ? null : request.getPermissionIds());
+        permissionQueryService.validatePermissionIds(permissionIds);
+        roleRelationRepository.replacePermissions(roleId, permissionIds);
+    }
+
+    /**
+     * 回显角色权限：返回带 assigned 勾选标记的全量权限树。
+     */
+    @Transactional(readOnly = true)
+    public List<RolePermissionTreeNode> getRolePermissionTree(Long roleId) {
+        checkRoleId(roleId);
+        getRole(roleId);  // 校验角色存在
+        List<PermissionTreeNode> fullTree = permissionService.getFullTree();
+        Set<Long> assignedIds = new HashSet<>(roleRelationRepository.findPermissionIdsByRoleId(roleId));
+        return markAssigned(fullTree, assignedIds);
+    }
+
+    private List<RolePermissionTreeNode> markAssigned(List<PermissionTreeNode> nodes, Set<Long> assignedIds) {
+        if (nodes == null || nodes.isEmpty()) {
+            return List.of();
+        }
+        return nodes.stream()
+                .map(node -> {
+                    List<RolePermissionTreeNode> children = markAssigned(node.getChildren(), assignedIds);
+                    return new RolePermissionTreeNode(
+                            node.getId(),
+                            node.getPermissionName(),
+                            node.getParentId(),
+                            node.getRoutePath(),
+                            node.getPermissionType(),
+                            node.getSortOrder(),
+                            node.getEnabled(),
+                            assignedIds.contains(node.getId()),
+                            !children.isEmpty(),
+                            children.isEmpty() ? null : children
+                    );
+                })
+                .toList();
+    }
+
+    private List<Long> normalizePermissionIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        if (ids.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST);
+        }
+        return new ArrayList<>(new LinkedHashSet<>(ids));
     }
 
     private Role getRole(Long id) {

@@ -11,8 +11,8 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>qirbac-role</artifactId>
-    <name>QiRBAC Role</name>
+    <artifactId>qirbac-permission</artifactId>
+    <name>QiRBAC Permission</name>
 
     <dependencies>
         <dependency>
@@ -22,7 +22,7 @@
         </dependency>
         <dependency>
             <groupId>org.zzq</groupId>
-            <artifactId>qirbac-permission</artifactId>
+            <artifactId>qirbac-security</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

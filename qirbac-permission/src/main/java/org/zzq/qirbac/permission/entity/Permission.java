@@ -1,4 +1,4 @@
-package org.zzq.qirbac.role.entity;
+package org.zzq.qirbac.permission.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -6,12 +6,17 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
+import org.zzq.qirbac.permission.types.PermissionType;
 
 /**
  * 权限实体。
  *
- * 权限可以表示菜单、接口或按钮。
- * 第一版 permissionType 使用字符串，建议取值：MENU、API、BUTTON。
+ * 权限支持父子级关系，用 parentId 组成权限树，用于归拢分类。
+ * 约定 parent_id = 0 表示顶级权限。
+ *
+ * permissionType 取值见 {@link PermissionType}：
+ *   FOLDER 目录（纯分组，可作父，不参与鉴权）
+ *   MENU 菜单 / API 接口 / BUTTON 按钮（叶子，参与鉴权，不可作父）
  */
 @Data
 @NoArgsConstructor
@@ -27,23 +32,25 @@ public class Permission extends BaseEntity {
     private String permissionName;
 
     /**
+     * 父级权限 ID，0 表示顶级权限。
+     */
+    @Column("parent_id")
+    private Long parentId;
+
+    /**
      * 路由地址。
      *
      * 菜单权限可以放前端路由，接口权限可以放后端接口路径。
+     * FOLDER 类型可空。
      */
     @Column("route_path")
     private String routePath;
 
     /**
-     * 权限类型。
-     *
-     * 建议值：
-     * MENU：菜单
-     * API：接口
-     * BUTTON：按钮
+     * 权限类型，见 {@link PermissionType}。
      */
     @Column("permission_type")
-    private String permissionType;
+    private PermissionType permissionType;
 
     /**
      * 排序值。
@@ -58,4 +65,10 @@ public class Permission extends BaseEntity {
      */
     @Column("enabled")
     private Boolean enabled;
+
+    /**
+     * 是否逻辑删除：true 已删除，false 未删除。
+     */
+    @Column("deleted")
+    private Boolean deleted;
 }
